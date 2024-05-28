@@ -6,8 +6,8 @@ DIR=`pwd`
 MODEL="Qwen/Qwen-VL-Chat" #"Qwen/Qwen-VL-Chat"/"Qwen/Qwen-VL" # Set the path if you do not want to load from huggingface directly
 # ATTENTION: specify the path to your training data, which should be a json file consisting of a list of conversations.
 # See the section for finetuning in README for more information.
-DATA="/home/michael/ai/projects/computer_agent/data/2_dot_qwen.json"
-EVAL_DATA="/home/michael/ai/projects/computer_agent/data/2_dot_qwen_eval.json"
+DATA="/home/michael/ai/projects/computer_agent/data/qwen_multistep.json"
+EVAL_DATA="/home/michael/ai/projects/computer_agent/data/qwen_multistep_eval.json"
 
 export CUDA_VISIBLE_DEVICES=0
 
@@ -22,8 +22,9 @@ python finetune.py \
     --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 8 \
     --gradient_accumulation_steps 1 \
-    --evaluation_strategy "epoch" \
-    --save_strategy "epoch" \
+    --evaluation_strategy "steps" \
+    --eval_steps 1000 \
+    --save_strategy "steps" \
     --save_steps 1000 \
     --save_total_limit 10 \
     --learning_rate 1e-5 \
