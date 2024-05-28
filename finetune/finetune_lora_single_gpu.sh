@@ -23,9 +23,9 @@ python finetune.py \
     --per_device_eval_batch_size 8 \
     --gradient_accumulation_steps 1 \
     --evaluation_strategy "steps" \
-    --eval_steps 1000 \
+    --eval_steps 250 \
     --save_strategy "steps" \
-    --save_steps 1000 \
+    --save_steps 250 \
     --save_total_limit 10 \
     --learning_rate 1e-5 \
     --weight_decay 0.1 \
