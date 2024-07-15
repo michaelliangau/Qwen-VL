@@ -15,8 +15,7 @@ python finetune.py \
     --model_name_or_path $MODEL \
     --data_path $DATA \
     --eval_data_path $EVAL_DATA \
-    --bf16 False \
-    --fp16 True \
+    --bf16 True \
     --fix_vit True \
     --output_dir output_qwen \
     --num_train_epochs 5 \
