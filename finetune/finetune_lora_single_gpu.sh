@@ -6,8 +6,8 @@ DIR=`pwd`
 MODEL="Qwen/Qwen-VL-Chat" #"Qwen/Qwen-VL-Chat"/"Qwen/Qwen-VL" # Set the path if you do not want to load from huggingface directly
 # ATTENTION: specify the path to your training data, which should be a json file consisting of a list of conversations.
 # See the section for finetuning in README for more information.
-DATA="/home/michael/ai/projects/computer_agent/data/qwen_multistep.json"
-EVAL_DATA="/home/michael/ai/projects/computer_agent/data/qwen_multistep_eval.json"
+DATA="/home/michael/ai/projects/computer_agent/data/form/form_train.json"
+EVAL_DATA="/home/michael/ai/projects/computer_agent/data/form/form_test.json"
 
 export CUDA_VISIBLE_DEVICES=0
 
@@ -15,7 +15,8 @@ python finetune.py \
     --model_name_or_path $MODEL \
     --data_path $DATA \
     --eval_data_path $EVAL_DATA \
-    --bf16 True \
+    --bf16 False \
+    --fp16 True \
     --fix_vit True \
     --output_dir output_qwen \
     --num_train_epochs 5 \
