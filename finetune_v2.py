@@ -16,6 +16,7 @@ from transformers import Trainer, GPTQConfig, deepspeed
 from transformers.trainer_pt_utils import LabelSmoother
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from accelerate.utils import DistributedType
+from transformers import AutoModelForCausalLM, PreTrainedModel
 
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
@@ -252,6 +253,28 @@ def make_supervised_data_module(
     return dict(train_dataset=train_dataset, eval_dataset=eval_dataset)
 
 
+class CustomModel(PreTrainedModel):
+    def __init__(self, base_model):
+        super().__init__(base_model.config)
+        self.base_model = base_model
+        self.config = base_model.config
+        self.transformer = base_model.transformer
+
+    def forward(self, *args, **kwargs):
+        kwargs['output_hidden_states'] = True
+        output = self.base_model(*args, **kwargs)
+        return output
+
+    # def prepare_inputs_for_generation(self, *args, **kwargs):
+    #     return self.base_model.prepare_inputs_for_generation(*args, **kwargs)
+
+    # def _reorder_cache(self, *args, **kwargs):
+    #     return self.base_model._reorder_cache(*args, **kwargs)
+    
+    def get_input_embeddings(self):
+        return self.base_model.embed_tokens
+
+
 def train():
     global local_rank
     
@@ -295,7 +318,7 @@ def train():
     config.use_cache = False
 
     # Load model and tokenizer
-    model = transformers.AutoModelForCausalLM.from_pretrained(
+    base_model = transformers.AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         config=config,
         cache_dir=training_args.cache_dir,
@@ -306,19 +329,15 @@ def train():
         )
         if training_args.use_lora and lora_args.q_lora
         else None,
-        ignore_mismatched_sizes=True,
     )
-
-    # TODO: /home/michael/.cache/huggingface/modules/transformers_modules/Qwen/Qwen-VL-Chat/f57cfbd358cb56b710d963669ad1bcfb44cdcdd8/configuration_qwen.py
-    # TODO: /home/michael/.cache/huggingface/modules/transformers_modules/Qwen/Qwen-VL-Chat/f57cfbd358cb56b710d963669ad1bcfb44cdcdd8/modeling_qwen.py
-    # Trying to figure out how to get rid of the lm_head layer and replace it with my own linear layer and then reduce the number of hidden layers
-    # I think you gotta replace it at the self.lm_head layer, not the vocab_size level.
+    
+    model = CustomModel(base_model)
 
     if not training_args.use_lora:
-        if training_args.fix_vit and hasattr(model,'transformer') and hasattr(model.transformer,'visual'):
-            model.transformer.visual.requires_grad_(False)
-            if hasattr(model.transformer.visual,'attn_pool'):
-                model.transformer.visual.attn_pool.requires_grad_(True)
+        if training_args.fix_vit and hasattr(model.base_model,'transformer') and hasattr(model.base_model.transformer,'visual'):
+            model.base_model.transformer.visual.requires_grad_(False)
+            if hasattr(model.base_model.transformer.visual,'attn_pool'):
+                model.base_model.transformer.visual.attn_pool.requires_grad_(True)
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
@@ -334,6 +353,7 @@ def train():
             modules_to_save = None
         else:
             modules_to_save = ["wte", "lm_head"]
+
         lora_config = LoraConfig(
             r=lora_args.lora_r,
             lora_alpha=lora_args.lora_alpha,
@@ -344,20 +364,19 @@ def train():
             modules_to_save=modules_to_save  # This argument serves for adding new tokens.
         )
         if lora_args.q_lora:
-            model = prepare_model_for_kbit_training(
-                model, use_gradient_checkpointing=training_args.gradient_checkpointing
+            model.base_model = prepare_model_for_kbit_training(
+                model.base_model, use_gradient_checkpointing=training_args.gradient_checkpointing
             )
 
-        model = get_peft_model(model, lora_config)
+        model.base_model = get_peft_model(model.base_model, lora_config)
 
         if training_args.gradient_checkpointing:
-            model.enable_input_require_grads()
-
+            model.base_model.enable_input_require_grads()
+    import IPython; IPython.embed()
     # Load data
     data_module = make_supervised_data_module(
         tokenizer=tokenizer, data_args=data_args, max_len=training_args.model_max_length
     )
-
     # Start trainner
     trainer = Trainer(
         model=model, tokenizer=tokenizer, args=training_args, **data_module
